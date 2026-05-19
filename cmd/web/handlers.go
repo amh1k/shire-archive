@@ -21,7 +21,9 @@ func (app *application)home(w http.ResponseWriter, r *http.Request) {
 		app.serverError(w, err)
 		return 
 	}
-	app.render(w, http.StatusOK, "home.tmpl", &templateData{Snippets: snippets})
+	data := app.newTemplateData(r)
+	data.Snippets=snippets
+	app.render(w, http.StatusOK, "home.tmpl", data)
 	// for _, snippet := range snippets {
 	// 	fmt.Fprintf(w, "%+v\n", snippet)
 	// }
@@ -51,6 +53,7 @@ func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
 		app.notFound(w)
 		return
 	}
+
 	snippet, err := app.snippets.Get(id)
 	if err != nil {
 		if errors.Is(err, models.ErrNoRecord) {
@@ -60,9 +63,9 @@ func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	app.render(w, http.StatusOK, "view.tmpl", &templateData{
-		Snippet: snippet,
-	})
+	data := app.newTemplateData(r)
+	data.Snippet = snippet
+	app.render(w, http.StatusOK, "view.tmpl", data)
 	// files := []string{
 	// 	"./ui/html/base.tmpl",
 	// 	"./ui/html/partials/nav.tmpl",
