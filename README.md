@@ -1,6 +1,6 @@
-# Snippetbox
+# ShireArchive
 
-Snippetbox is a secure, monolithic web application written in Go that allows users to create, share, and view text snippets. It features user authentication, active session management, template rendering with an embedded filesystem, and CSRF protection.
+ShireArchive is a secure, monolithic web application written in Go that allows users to create, share, and view text snippets. It features user authentication, active session management, template rendering with an embedded filesystem, and CSRF protection.
 
 ## Features
 
@@ -15,10 +15,12 @@ Snippetbox is a secure, monolithic web application written in Go that allows use
   - Context-based authentication middleware to protect sensitive routes.
 
 ## Disclaimer on Testing
+
 > [!WARNING]
 > Please note that **testing has not been covered yet** in the scope of this project. Comprehensive unit and integration test coverage will be iteratively added in future updates.
 
 ## Tech Stack
+
 - **Language**: Go 1.20+
 - **Database**: MySQL
 - **Router**: `julienschmidt/httprouter`
@@ -46,16 +48,19 @@ Snippetbox is a secure, monolithic web application written in Go that allows use
 ## Getting Started
 
 ### Prerequisites
+
 - Go installed on your machine
 - MySQL database running locally or remotely
 
 ### Configuration
+
 1. Clone the repository.
 2. Initialize your MySQL database with the `users` and `snippets` tables.
-3. Configure your database connection utilizing the `-dsn` flag or hardcode your DSN into the main application. 
+3. Configure your database connection utilizing the `-dsn` flag or hardcode your DSN into the main application.
 4. Ensure your TLS certificates are located under `./tls/cert.pem` and `./tls/key.pem`.
 
 ### Running the App
+
 Run the following command at the root of the project:
 
 ```bash
@@ -66,4 +71,5 @@ By default, the server will start on port `4000`. Open your browser and navigate
 `https://localhost:4000`
 
 ## Contributing
+
 Contributions are welcome. Please ensure that all new features adhere to the project's embedded structure and strict validation patterns. As mentioned, testing frameworks have not been integrated yet, so thorough manual testing is expected before submitting a pull request.
