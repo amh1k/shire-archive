@@ -21,6 +21,16 @@ type User struct {
 type UserModel struct {
 	DB *sql.DB
 }
+type UserModelInterface interface {
+	Insert(name, email, password string) error
+	Authenticate(email, password string) (int, error)
+	Exists(id int) (bool, error)
+}
+type SnippetModelInterface interface {
+	Insert(title string, content string, expires int) (int, error)
+	Get(id int) (*Snippet, error)
+	Latest() ([]*Snippet, error)
+}
 func (m *UserModel)Insert(name, email, password string)error {
 	hashedPassword, err := bcrypt.GenerateFromPassword([] byte (password), 12)
 	if err != nil {
