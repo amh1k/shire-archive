@@ -25,7 +25,7 @@ type application struct {
 	users models.UserModelInterface
 	templateCache map[string] *template.Template
 	formDecoder *form.Decoder
-	sessionManager scs.SessionManager
+	sessionManager *scs.SessionManager
 }
 
 
@@ -53,7 +53,7 @@ func main() {
 		users : &models.UserModel{DB: db},
 		templateCache: templateCache,
 		formDecoder: formDecoder,
-		sessionManager: *sessionManager,
+		sessionManager: sessionManager,
 
 		
 		

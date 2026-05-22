@@ -65,11 +65,15 @@ func (app *application) requireAuthentication(next http.Handler) http.Handler {
 	})
 }
 func noSurf(next http.Handler) http.Handler {
+	// Check if we're in test environment
+	
+	
 	csrfHandler := nosurf.New(next)
 	csrfHandler.SetBaseCookie(http.Cookie{
 		HttpOnly: true,
 		Path: "/",
 		Secure: true,
+		SameSite: http.SameSiteLaxMode,
 	})
 	return csrfHandler
 }
