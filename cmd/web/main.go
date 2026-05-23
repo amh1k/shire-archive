@@ -26,12 +26,14 @@ type application struct {
 	templateCache map[string] *template.Template
 	formDecoder *form.Decoder
 	sessionManager *scs.SessionManager
+	debug *bool
 }
 
 
 func main() {
 	addr := flag.String("addr", ":4000", "HTTP Network address block")
 	dsn := flag.String("dsn", "web:abc@/shirearchive?parseTime=true", "MySQL data source name")
+	debug := flag.Bool("debug", false, "Used for displaying errors and stack traces in browser")
 	flag.Parse()
 	infoLog := log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
 	errorLog := log.New(os.Stderr, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
@@ -54,6 +56,7 @@ func main() {
 		templateCache: templateCache,
 		formDecoder: formDecoder,
 		sessionManager: sessionManager,
+		debug: debug,
 
 		
 		

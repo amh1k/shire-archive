@@ -27,3 +27,12 @@ func (m *UserModel) Exists(id int) (bool, error) {
 		return false, nil
 }
 }
+
+func(m *UserModel)Get(id int)(*models.User, error) {
+	var user models.User
+	user.Email = "abc"
+	user.Name = "xyz"
+	return &user, nil
+
+
+}
