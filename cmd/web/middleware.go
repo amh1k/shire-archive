@@ -66,8 +66,6 @@ func (app *application) requireAuthentication(next http.Handler) http.Handler {
 }
 func noSurf(next http.Handler) http.Handler {
 	// Check if we're in test environment
-	
-	
 	csrfHandler := nosurf.New(next)
 	csrfHandler.SetBaseCookie(http.Cookie{
 		HttpOnly: true,
@@ -87,6 +85,7 @@ func (app *application) authenticate(next http.Handler) http.Handler{
 		}
 		exists, err := app.users.Exists(id)
 		if err != nil {
+			// fmt.Println("ERROR FOUND FOLKS")
 			app.serverError(w, err)
 			return
 		}
