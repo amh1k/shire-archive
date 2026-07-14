@@ -1,194 +1,62 @@
 # ShireArchive
 
-ShireArchive is a secure, monolithic web application written in Go that allows users to create, share, and view text snippets. It implements a layered middleware chain, interface-driven database models, CSRF protection, and a comprehensive test suite against in-memory mocks.
+ShireArchive is a server-rendered Go web application for creating and sharing expiring text snippets. It includes user registration, authentication, account management, MySQL-backed sessions, CSRF protection, and an embedded frontend.
+
+> [!IMPORTANT]
+> This repository is a learning project with production-oriented security practices. Review the [production checklist](#production-checklist) before exposing it to the public internet.
 
 ## Features
 
-- **User Authentication**: Registration, login, and logout backed by `bcrypt` password hashing (cost factor 12).
-- **Account Management**: Authenticated users can view their profile and update their password in-app.
-- **Session Management**: MySQL-backed sessions via `alexedwards/scs` with a 12-hour lifetime and secure cookies.
-- **Snippet Management**: Create snippets with a title, content, and expiration of 1, 7, or 365 days.
-- **Redirect-After-Login**: Unauthenticated users are redirected to their intended destination after successfully logging in.
-- **Embedded UI Assets**: All HTML templates and static files are bundled into the binary using `go:embed`.
-- **Debug Mode**: A `-debug` flag exposes server-side error details and stack traces in the browser.
-- **Security-First Design**:
-  - TLS-only server with restricted curve preferences (`X25519`, `CurveP256`).
-  - CSRF protection on every state-mutating request via `justinas/nosurf`.
-  - `Cache-Control: no-store` on all protected routes to prevent back-button leaks.
-  - Strict security headers: `Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`.
-  - Context-based authentication propagation via a typed context key.
+- Create snippets that expire after 1, 7, or 365 days
+- Register, log in, log out, and change account passwords
+- Return users to their intended protected page after login
+- Persist application data and sessions in MySQL
+- Protect state-changing requests with CSRF tokens
+- Hash passwords with bcrypt
+- Serve exclusively over HTTPS
+- Embed templates and static assets in the application binary
+- Apply security headers and disable caching on authenticated pages
+- Recover from panics and log requests and server errors
 
-## Architecture
+## Technology
 
-```
-                    HTTPS Request
-                         |
-                         v
-          +-----------------------------+
-          |  Standard Middleware Chain  |
-          |  recoverPanic               |
-          |  logRequest                 |
-          |  secureHeaders              |
-          +-----------------------------+
-                         |
-                         v
-          +-----------------------------+
-          |       httprouter Mux        |
-          +-----------------------------+
-                         |
-             +-----------+-----------+
-             |                       |
-             v                       v
-    [Public routes]         [Dynamic middleware]
-    /ping                   sessionManager.LoadAndSave
-    /static/*               noSurf (CSRF)
-                            authenticate
-                                    |
-                       +------------+------------+
-                       |                         |
-                       v                         v
-             [Open dynamic]            [Protected] (+requireAuthentication)
-             GET  /                    GET/POST /snippet/create
-             GET  /snippet/view/:id    POST     /user/logout
-             GET  /user/signup         GET      /account/view
-             POST /user/signup         GET/POST /account/password/update
-             GET  /user/login
-             POST /user/login
-             GET  /about
-                       |
-                       v
-          +-----------------------------+
-          |       application struct    |
-          |  snippets SnippetModelIface |
-          |  users    UserModelIface    |
-          |  templateCache              |
-          |  formDecoder                |
-          |  sessionManager             |
-          +-----------------------------+
-                    /       \
-                   v         v
-          +-----------+  +-----------+
-          | SnippetModel| | UserModel |
-          | (MySQL)     | | (MySQL)   |
-          +-----------+  +-----------+
-```
+| Area | Choice |
+| --- | --- |
+| Language | Go 1.26.2 |
+| Database | MySQL |
+| Router | `julienschmidt/httprouter` |
+| Middleware | `justinas/alice` |
+| Sessions | `alexedwards/scs/v2` with `mysqlstore` |
+| CSRF protection | `justinas/nosurf` |
+| Forms | `go-playground/form/v4` |
+| Password hashing | `golang.org/x/crypto/bcrypt` |
 
-### Request Lifecycle
+## Requirements
 
-Every request passes through the **standard chain** (`recoverPanic -> logRequest -> secureHeaders`) before reaching the router. Dynamic routes additionally pass through `sessionManager.LoadAndSave -> noSurf -> authenticate`. Routes requiring a logged-in user append `requireAuthentication`, which stores the attempted path in the session and redirects to `/user/login` if unauthenticated.
+- Go 1.26.2 or a compatible newer version
+- MySQL 8.x (or a compatible MySQL server)
+- OpenSSL, or another way to generate a local TLS certificate
 
-## Tech Stack
+## Quick start
 
-| Concern             | Library / Tool                          |
-|---------------------|-----------------------------------------|
-| Language            | Go 1.26                                 |
-| Database            | MySQL                                   |
-| Router              | `julienschmidt/httprouter`              |
-| Middleware chaining | `justinas/alice`                        |
-| Session management  | `alexedwards/scs/v2` + `mysqlstore`     |
-| CSRF protection     | `justinas/nosurf`                       |
-| Form decoding       | `go-playground/form/v4`                 |
-| Password hashing    | `golang.org/x/crypto/bcrypt`            |
-| TLS driver          | Standard library `crypto/tls`           |
-
-## Project Structure
-
-```
-.
-├── cmd/
-│   └── web/
-│       ├── main.go               # Dependency wiring, server bootstrap
-│       ├── routes.go             # Route definitions and middleware chains
-│       ├── handlers.go           # HTTP handler functions and form structs
-│       ├── middleware.go         # secureHeaders, logRequest, recoverPanic,
-│       │                         # requireAuthentication, noSurf, authenticate
-│       ├── helpers.go            # render, newTemplateData, clientError, serverError
-│       ├── templates.go          # Template cache construction, humanDate func
-│       ├── context.go            # Typed context key for auth propagation
-│       ├── handlers_test.go      # Integration tests: Ping, SnippetView,
-│       │                         # UserSignup, SnippetCreate
-│       ├── middleware_test.go    # Middleware-level tests
-│       ├── templates_test.go     # Template cache tests
-│       └── testutils_test.go     # newTestApplication, newTestServer,
-│                                 # extractCSRFToken helpers
-├── internal/
-│   ├── models/
-│   │   ├── snippets.go           # SnippetModel + SnippetModelInterface
-│   │   ├── users.go              # UserModel + UserModelInterface
-│   │   ├── errors.go             # Sentinel errors (ErrNoRecord, ErrDuplicateEmail, ...)
-│   │   ├── testutils_test.go     # Model-layer test helpers
-│   │   ├── users_test.go         # UserModel unit tests
-│   │   ├── testdata/             # SQL seed scripts for model tests
-│   │   └── mocks/                # In-memory mock implementations of both interfaces
-│   ├── assert/
-│   │   └── assert.go             # Equal, StringContains, NilError test helpers
-│   └── validator/
-│       └── validator.go          # Validator struct, CheckField, NotBlank, MinChars,
-│                                 # MaxChars, PermittedValue, Matches, EmailRX
-├── tls/
-│   ├── cert.pem                  # TLS certificate
-│   └── key.pem                   # TLS private key
-├── ui/
-│   ├── efs.go                    # go:embed declaration
-│   ├── html/
-│   │   ├── base.tmpl             # Base layout
-│   │   ├── pages/                # home, view, create, signup, login,
-│   │   │                         # about, account, password templates
-│   │   └── partials/             # nav partial
-│   └── static/                   # CSS, JS, images
-├── go.mod
-├── go.sum
-└── main.go                       # Entry point (delegates to cmd/web)
-```
-
-## Test Suite
-
-The project includes a layered test suite with no external test database required.
-
-### Architecture
-
-- **`internal/models/mocks`** provides in-memory implementations of `SnippetModelInterface` and `UserModelInterface`, seeded with fixture data (e.g. snippet ID 1, user `alice@example.com`).
-- **`internal/assert`** provides generic `Equal[T]`, `StringContains`, and `NilError` helpers.
-- **`cmd/web/testutils_test.go`** provides `newTestApplication` (wires mocks), `newTestServer` (wraps `httptest.NewTLSServer` with a persistent cookie jar and redirect control), and `extractCSRFToken` (regex-based CSRF scraper).
-
-### Test Coverage
-
-| Test                     | What it verifies                                                                 |
-|--------------------------|----------------------------------------------------------------------------------|
-| `TestPing`               | Health check endpoint returns `200 OK` with body `"OK"`                          |
-| `TestSnippetView`        | Valid ID serves content; invalid/negative/decimal/string/empty IDs return 404    |
-| `TestUserSignup`         | Valid submission redirects 303; invalid CSRF returns 400; field validation returns 422 and re-renders the form |
-| `TestSnippetCreate`      | Unauthenticated request redirects to `/user/login`; authenticated session serves the create form |
-
-The `postForm` helper sets a `Referer` header matching the test server origin to satisfy `nosurf`'s HTTPS referrer validation.
-
-### Running Tests
+### 1. Clone the repository
 
 ```bash
-# Run all tests with verbose output
-go test -v ./...
-
-# Run only handler tests
-go test -v ./cmd/web/
-
-# Run only model tests
-go test -v ./internal/models/
+git clone git@github.com:amh1k/shire-archive.git
+cd shire-archive
+go mod download
 ```
 
-## Getting Started
+### 2. Create the database
 
-### Prerequisites
-
-- Go 1.20 or later
-- MySQL server (local or remote)
-
-### Database Setup
-
-Create the database and user, then apply the schema:
+Open a MySQL session as an administrative user and run:
 
 ```sql
-CREATE DATABASE shirearchive CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'web'@'localhost' IDENTIFIED BY 'abc';
+CREATE DATABASE shirearchive
+    CHARACTER SET utf8mb4
+    COLLATE utf8mb4_unicode_ci;
+
+CREATE USER 'web'@'localhost' IDENTIFIED BY 'replace-with-a-strong-password';
 GRANT SELECT, INSERT, UPDATE, DELETE ON shirearchive.* TO 'web'@'localhost';
 
 USE shirearchive;
@@ -200,6 +68,7 @@ CREATE TABLE snippets (
     created DATETIME NOT NULL,
     expires DATETIME NOT NULL
 );
+
 CREATE INDEX idx_snippets_created ON snippets(created);
 
 CREATE TABLE users (
@@ -216,45 +85,188 @@ CREATE TABLE sessions (
     data   BLOB NOT NULL,
     expiry TIMESTAMP(6) NOT NULL
 );
-CREATE INDEX sessions_expiry_idx ON sessions (expiry);
+
+CREATE INDEX sessions_expiry_idx ON sessions(expiry);
 ```
 
-### TLS Certificates
+There is not yet a migration command in this repository. Schema changes must currently be applied manually.
 
-For local development, generate a self-signed certificate pair:
+### 3. Generate a development certificate
+
+The server expects `tls/cert.pem` and `tls/key.pem`, relative to the directory from which it is started. The `tls/` directory is intentionally ignored by Git.
 
 ```bash
-mkdir tls
-go run /usr/local/go/src/crypto/tls/generate_cert.go --rsa-bits=2048 --host=localhost
-mv cert.pem tls/cert.pem
-mv key.pem tls/key.pem
+mkdir -p tls
+openssl req -x509 -newkey rsa:2048 -nodes \
+  -keyout tls/key.pem \
+  -out tls/cert.pem \
+  -days 365 \
+  -subj "/CN=localhost" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
 ```
 
-### Running the Application
+Your browser will warn about this self-signed certificate. That is expected for local development.
+
+### 4. Start the server
+
+Pass the database credentials at runtime instead of relying on the example default in the source code:
 
 ```bash
-go run ./cmd/web
+go run ./cmd/web \
+  -addr=":4000" \
+  -dsn="web:replace-with-a-strong-password@/shirearchive?parseTime=true"
 ```
 
-The server starts on `:4000` by default. Navigate to `https://localhost:4000`.
+Visit <https://localhost:4000>. A health check is available at <https://localhost:4000/ping>.
 
-#### CLI Flags
+## Configuration
 
-| Flag    | Default                                    | Description                                    |
-|---------|--------------------------------------------|------------------------------------------------|
-| `-addr` | `:4000`                                    | Network address and port                       |
-| `-dsn`  | `web:abc@/shirearchive?parseTime=true`     | MySQL data source name                         |
-| `-debug`| `false`                                    | Show error details and stack traces in browser |
+Configuration is currently provided through command-line flags. The application does not read `.env` or `.config` files.
 
-Example with custom flags:
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `-addr` | `:4000` | HTTPS listen address |
+| `-dsn` | `web:abc@/shirearchive?parseTime=true` | MySQL data source name |
+| `-debug` | `false` | Display internal errors and stack traces in HTTP responses |
+
+Run `go run ./cmd/web -help` to see the available flags.
+
+> [!WARNING]
+> Never enable `-debug` in production. Avoid putting real credentials in source control, screenshots, shell history, issue reports, or documentation. For a production deployment, inject the DSN through a secret manager or protected runtime configuration.
+
+## Testing
+
+Run the fast test suite, which skips database integration tests:
 
 ```bash
-go run ./cmd/web -addr=":8080" -dsn="user:pass@/dbname?parseTime=true" -debug
+go test -short ./...
 ```
 
-## Security Notes
+Run all tests with:
 
-- All session cookies are configured with `Secure`, `HttpOnly`, and `SameSite=Lax`.
-- Session tokens are rotated on login and logout via `RenewToken` to prevent session fixation.
-- Duplicate email registration is caught at the database constraint level and surfaced as a typed sentinel error (`ErrDuplicateEmail`).
-- The `-debug` flag must never be enabled in production as it exposes internal error details to the client.
+```bash
+go test ./...
+```
+
+The `internal/models` integration test expects a local MySQL database with the following fixed test credentials:
+
+```sql
+CREATE DATABASE test_snippetbox
+    CHARACTER SET utf8mb4
+    COLLATE utf8mb4_unicode_ci;
+
+CREATE USER 'test_web'@'localhost' IDENTIFIED BY 'pass';
+GRANT ALL PRIVILEGES ON test_snippetbox.* TO 'test_web'@'localhost';
+```
+
+The test setup and teardown scripts create and remove their own tables. Use a dedicated test database only—never point the tests at development or production data.
+
+Useful development checks:
+
+```bash
+go test -race -short ./...
+go vet ./...
+gofmt -w cmd internal ui
+```
+
+## Application structure
+
+```text
+.
+├── cmd/web/                 HTTP server, routes, middleware, handlers, and tests
+├── internal/assert/         Test assertion helpers
+├── internal/models/         MySQL models, interfaces, mocks, and model tests
+├── internal/validator/      Reusable form validation
+├── ui/html/                 Page layouts, pages, and partial templates
+├── ui/static/               CSS, JavaScript, and images
+├── ui/efs.go                Embedded UI filesystem
+├── go.mod                   Module and dependency declarations
+└── main.go                  Earlier standalone example; not the ShireArchive server
+```
+
+The supported application entry point is `./cmd/web`. The root `main.go` is a separate, earlier example and does not start the full application.
+
+## Request flow
+
+```text
+HTTPS request
+  -> panic recovery
+  -> request logging
+  -> security headers
+  -> router
+      -> static files and /ping
+      -> session loading + CSRF protection + authentication
+          -> public dynamic routes
+          -> authentication requirement -> protected routes
+  -> handler
+  -> MySQL model
+```
+
+Protected routes include snippet creation, logout, account viewing, and password changes. Unauthenticated requests are redirected to the login page, and the original path is stored so the user can return after authenticating.
+
+## Security model
+
+The application currently includes:
+
+- HTTPS with explicit curve preferences
+- `Secure`, `HttpOnly`, and `SameSite=Lax` CSRF cookies
+- MySQL-backed server-side sessions with a 12-hour lifetime
+- Session token rotation during login and logout
+- Bcrypt password hashing
+- CSRF protection on dynamic routes
+- Content Security Policy, clickjacking protection, MIME sniffing protection, and referrer policy headers
+- `Cache-Control: no-store` on authenticated routes
+- Database uniqueness enforcement for email addresses
+
+Security reports should not include credentials, session tokens, private keys, or personal data. If this repository is used by others, add a private vulnerability-reporting method in `SECURITY.md`.
+
+## Production checklist
+
+Before deploying publicly:
+
+- Replace the example database credentials and remove the insecure default DSN from application code.
+- Load secrets from protected runtime configuration or a secret manager.
+- Use a certificate issued by a trusted certificate authority, or terminate TLS at a properly configured reverse proxy.
+- Run the service as an unprivileged user and restrict access to the TLS private key.
+- Add versioned database migrations and a documented backup/restore process.
+- Add graceful shutdown and deployment health/readiness checks.
+- Send structured logs to a persistent logging system and configure monitoring and alerting.
+- Pin a supported Go toolchain and keep dependencies updated.
+- Review the Content Security Policy and all cookie settings for the deployment domain.
+- Put rate limiting and request-size limits at the application or reverse-proxy layer.
+- Run `go test -race -short ./...`, `go vet ./...`, and a vulnerability scanner in CI.
+
+## Troubleshooting
+
+### `dial unix /var/run/mysqld/mysqld.sock: connect: no such file or directory`
+
+MySQL is not running, is using a different socket, or the DSN needs an explicit TCP address. For example:
+
+```bash
+-dsn="web:password@tcp(127.0.0.1:3306)/shirearchive?parseTime=true"
+```
+
+### `access denied for user`
+
+Confirm that the username, password, host, and grants match the DSN. In MySQL, `'web'@'localhost'` and `'web'@'127.0.0.1'` can be treated as different accounts.
+
+### `open ./tls/cert.pem: no such file or directory`
+
+Start the application from the repository root and generate the certificate files described above.
+
+### Browser certificate warning
+
+Self-signed certificates are not trusted automatically. Use them only for local development; use a trusted certificate in production.
+
+## Contributing
+
+1. Create a focused branch.
+2. Make the change and add or update tests.
+3. Run formatting, tests, and static checks.
+4. Open a pull request explaining the motivation, behavior change, and verification performed.
+
+Please keep commits focused and never commit database credentials, private keys, generated certificates, or local environment files.
+
+## License
+
+No license file is currently included. Unless a license is added, standard copyright restrictions apply and reuse is not automatically granted.
